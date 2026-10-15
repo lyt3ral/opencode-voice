@@ -240,10 +240,14 @@ export default Plugin.define({
       return route?.type === "session" ? route.sessionID : null;
     }
 
+    // The wire shape is a bare string. SessionPromptInput renders these fields
+    // via indexed-access types ({...}["text"]) in the .d.ts, which reads like an
+    // object but resolves to a plain string; the server rejects { text } with
+    // "Expected string at [\"text\"]". openapi.json is the authority here.
     async function send(text) {
       const sessionID = currentSessionID();
       if (!sessionID) throw new Error("No active session - open one first");
-      const res = await ctx.client.session.prompt({ sessionID, text: { text } });
+      const res = await ctx.client.session.prompt({ sessionID, text });
       if (res?.error) throw new Error(res.error.data?.message ?? res.error.name);
     }
 
