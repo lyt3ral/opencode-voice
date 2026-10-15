@@ -20,7 +20,8 @@
   },
   "files": [
     "index.js",
-    "lib"
+    "lib",
+    "src"
   ],
   "type": "module",
   "main": "index.js",
@@ -29,7 +30,7 @@
       "import": "./index.js"
     },
     "./tui": {
-      "import": "./index.js"
+      "import": "./src/tui.js"
     }
   },
   "scripts": {
@@ -39,6 +40,10 @@
     "test": "node --test",
     "check": "npm run lint && npm run fmt",
     "prepack": "npm run check"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.29",
+    "solid-js": "^1.9.17"
   },
   "devDependencies": {
     "oxfmt": "0.50.0",
