@@ -15,13 +15,18 @@ const MODELS_DIRS = [
 ];
 
 const MODELS = {
-  "large-v3-turbo-q5_0": { label: "Large v3 Turbo Q5", file: "ggml-large-v3-turbo-q5_0.bin" },
+  "large-v3-turbo-q5_0": {
+    label: "Large v3 Turbo Q5 (most accurate)",
+    file: "ggml-large-v3-turbo-q5_0.bin",
+  },
   "medium-q5_0": { label: "Medium Q5 (multilingual)", file: "ggml-medium-q5_0.bin" },
+  "small-q5_1": { label: "Small Q5_1 (multilingual, balanced)", file: "ggml-small-q5_1.bin" },
+  small: { label: "Small multilingual", file: "ggml-small.bin" },
   "small.en": { label: "Small English", file: "ggml-small.en.bin" },
-  "base.en": { label: "Base English", file: "ggml-base.en.bin" },
-  base: { label: "Base multilingual", file: "ggml-base.bin" },
-  "tiny.en": { label: "Tiny English (fastest)", file: "ggml-tiny.en.bin" },
-  tiny: { label: "Tiny multilingual (fastest)", file: "ggml-tiny.bin" },
+  "base.en": { label: "Base English (fastest)", file: "ggml-base.en.bin" },
+  base: { label: "Base multilingual (fast)", file: "ggml-base.bin" },
+  "tiny.en": { label: "Tiny English", file: "ggml-tiny.en.bin" },
+  tiny: { label: "Tiny multilingual", file: "ggml-tiny.bin" },
 };
 const DEFAULT_MODEL = "base.en";
 
