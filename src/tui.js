@@ -295,7 +295,7 @@ export default Plugin.define({
         id: "opencode-voice.record",
         title: "Voice: record / transcribe",
         description: "Toggle recording; press again to stop and insert into the prompt",
-        bind: "ctrl+r",
+        bind: "ctrl+y",
         palette: true,
         slash: { name: "voice" },
         run: () => {
