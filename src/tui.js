@@ -281,7 +281,9 @@ export default Plugin.define({
         if (result.error) return toast(result.error, "error");
         if (!result.text) return toast("No speech detected", "warning");
 
-        update({ lastTranscript: result.text });
+        await update((draft) => {
+          draft.lastTranscript = result.text;
+        });
         if (deliver === "clipboard") {
           await copyToClipboard(result.text);
           toast("Copied to clipboard - paste where you want it", "success");
@@ -361,7 +363,12 @@ export default Plugin.define({
             })),
           });
           if (picked) {
-            update({ model: picked });
+            // update() takes a mutation callback that receives the store draft, not a
+            // patch object - passing an object silently did nothing, so the model,
+            // language and mic selections never persisted.
+            await update((draft) => {
+              draft.model = picked;
+            });
             toast(`Model: ${MODELS[picked].label}`);
           }
         },
@@ -382,7 +389,9 @@ export default Plugin.define({
             })),
           });
           if (picked) {
-            update({ language: picked });
+            await update((draft) => {
+              draft.language = picked;
+            });
             toast(`Language: ${LANGUAGES[picked]}`);
           }
         },
@@ -405,7 +414,9 @@ export default Plugin.define({
             ],
           });
           if (picked !== undefined) {
-            update({ mic: picked });
+            await update((draft) => {
+              draft.mic = picked;
+            });
             toast(`Mic: ${picked || "system default"}`);
           }
         },
