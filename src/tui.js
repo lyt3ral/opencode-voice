@@ -304,6 +304,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.record",
         title: "Voice: record and send",
+        group: "Voice",
         description: "Toggle recording; press again to transcribe and send as a prompt",
         bind: "ctrl+y",
         palette: true,
@@ -321,6 +322,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.copy",
         title: "Voice: record to clipboard",
+        group: "Voice",
         description: "Stop recording, transcribe, and copy to the clipboard instead of sending",
         bind: "<leader>r",
         palette: true,
@@ -332,6 +334,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.cancel",
         title: "Voice: cancel recording",
+        group: "Voice",
         description: "Discard the current recording",
         palette: true,
         slash: { name: "voice-stop" },
@@ -345,6 +348,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.model",
         title: "Voice: select model",
+        group: "Voice",
         palette: true,
         slash: { name: "voice-model" },
         run: async () => {
@@ -365,6 +369,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.language",
         title: "Voice: select language",
+        group: "Voice",
         palette: true,
         slash: { name: "voice-language" },
         run: async () => {
@@ -385,6 +390,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.mic",
         title: "Voice: select microphone",
+        group: "Voice",
         palette: true,
         slash: { name: "voice-mic" },
         run: async () => {
@@ -407,6 +413,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.last",
         title: "Voice: copy last transcript",
+        group: "Voice",
         palette: true,
         description: "Put the most recent transcript back on the clipboard",
         run: async () => {
@@ -417,13 +424,32 @@ export default Plugin.define({
       },
     ];
 
-    ctx.keymap.layer(() => ({ commands, priority: 10 }));
+    // ctx.keymap.layer needs a Solid component context, so it is registered from
+    // inside an app-slot render function; calling it directly from setup()
+    // registers the bindings but silently drops palette and slash entries.
+    // mode "global" opts out of the default "base" input mode, otherwise the
+    // layer is not reachable from the prompt's slash completion.
+    const stopSlot = ctx.ui.slot({
+      append: "app",
+      render: () => {
+        ctx.keymap.layer(() => ({
+          mode: "global",
+          priority: 100,
+          commands,
+          bindings: ["opencode-voice.record", "opencode-voice.copy"],
+        }));
+        return null;
+      },
+    });
 
     ctx.data.on("session.idle", () => {
       killRecorder();
     });
 
     log("STT", `registered ${commands.length} commands, model=${settings.model}`);
-    return () => killRecorder();
+    return () => {
+      stopSlot();
+      killRecorder();
+    };
   },
 });
