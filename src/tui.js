@@ -102,6 +102,18 @@ export default Plugin.define({
       return MODELS_DIRS[0];
     };
 
+    const isInstalled = (entry) => {
+      try {
+        return fs.existsSync(`${modelsDir()}/${entry.file}`);
+      } catch {
+        return false;
+      }
+    };
+
+    // Only offer models whose GGML file is actually present, so the picker does
+    // not advertise 548 MB downloads the user does not have.
+    const installedModels = () => Object.entries(MODELS).filter(([, v]) => isInstalled(v));
+
     const modelEntry = () => MODELS[settings.model] ?? MODELS[DEFAULT_MODEL];
     const modelPath = () => `${modelsDir()}/${modelEntry().file}`;
 
@@ -359,11 +371,18 @@ export default Plugin.define({
         palette: true,
         slash: { name: "voice-model" },
         run: async () => {
+          const available = installedModels();
+          if (available.length === 0) {
+            return toast(
+              `No whisper models found in ${modelsDir()}. Download a GGML model from huggingface.co/ggerganov/whisper.cpp`,
+              "warning",
+            );
+          }
           const picked = await ctx.ui.dialog.select({
             title: "Whisper model",
             current: settings.model,
-            options: Object.entries(MODELS).map(([value, v]) => ({
-              title: v.label,
+            options: available.map(([value, v]) => ({
+              title: value === settings.model ? `${v.label}  (current)` : v.label,
               value,
             })),
           });
