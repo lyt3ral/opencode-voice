@@ -19,7 +19,7 @@ const MODELS = {
   "medium-q5_0": { label: "Medium Q5 (multilingual)", file: "ggml-medium-q5_0.bin" },
   "small.en": { label: "Small English", file: "ggml-small.en.bin" },
   "base.en": { label: "Base English", file: "ggml-base.en.bin" },
-  "base": { label: "Base multilingual", file: "ggml-base.bin" },
+  base: { label: "Base multilingual", file: "ggml-base.bin" },
   "tiny.en": { label: "Tiny English (fastest)", file: "ggml-tiny.en.bin" },
   tiny: { label: "Tiny multilingual (fastest)", file: "ggml-tiny.bin" },
 };
@@ -187,17 +187,9 @@ export default Plugin.define({
       return new Promise((resolve) => {
         let stdout = "";
         let stderr = "";
-        const proc = spawn("whisper-cli",
-          [
-            "-m",
-            mp,
-            "-f",
-            wav,
-            "-l",
-            settings.language || "auto",
-            "-np",
-            "-nt",
-          ],
+        const proc = spawn(
+          "whisper-cli",
+          ["-m", mp, "-f", wav, "-l", settings.language || "auto", "-np", "-nt"],
           { stdio: ["ignore", "pipe", "pipe"] },
         );
         proc.stdout.on("data", (c) => {
@@ -234,32 +226,42 @@ export default Plugin.define({
       });
     }
 
-    // ---- injection ----
+    // ---- delivery ----
+    // V2 gives a plugin no way to write into the composer. The
+    // `tui.prompt.append` event type has no matching RPC method - the server
+    // answers "RPC is unavailable: tui.prompt.append" - and the TUI Context
+    // exposes slots for rendering but nothing for injection. So a transcript is
+    // sent as a prompt directly rather than staged in the composer for review.
+    // Delivery is therefore explicit: "send" submits, "clipboard" leaves the
+    // text for the user to paste.
 
-    async function inject(text) {
-      const res = await ctx.client.rpc.call({
-        rpcID: "tui.prompt.append",
-        method: "tui.prompt.append",
-        input: { text },
-      });
-      if (res?.error) {
-        throw new Error(
-          `tui.prompt.append failed: ${res.error.data?.message ?? res.error.name}`,
-        );
-      }
+    function currentSessionID() {
+      const route = ctx.ui.router.current();
+      return route?.type === "session" ? route.sessionID : null;
     }
 
-    async function submit(text) {
-      await inject(text);
-      const route = ctx.ui.router.current();
-      if (route?.type === "session") {
-        await ctx.client.session.prompt({ sessionID: route.sessionID });
-      }
+    async function send(text) {
+      const sessionID = currentSessionID();
+      if (!sessionID) throw new Error("No active session - open one first");
+      const res = await ctx.client.session.prompt({ sessionID, text: { text } });
+      if (res?.error) throw new Error(res.error.data?.message ?? res.error.name);
+    }
+
+    function copyToClipboard(text) {
+      return new Promise((resolve, reject) => {
+        const p = spawn("wl-copy", [], { stdio: ["pipe", "ignore", "ignore"] });
+        p.on("error", reject);
+        p.on("close", (code) =>
+          code === 0 ? resolve() : reject(new Error(`wl-copy exited (${code})`)),
+        );
+        p.stdin.write(text);
+        p.stdin.end();
+      });
     }
 
     // ---- pipeline ----
 
-    async function run(submitAfter) {
+    async function run(deliver) {
       if (processing) return toast("Busy, please wait...");
       processing = true;
       try {
@@ -276,9 +278,13 @@ export default Plugin.define({
         if (!result.text) return toast("No speech detected", "warning");
 
         update({ lastTranscript: result.text });
-        if (submitAfter) await submit(result.text);
-        else await inject(result.text);
-        toast(submitAfter ? "Submitted" : "Added to prompt", "success");
+        if (deliver === "clipboard") {
+          await copyToClipboard(result.text);
+          toast("Copied to clipboard - paste where you want it", "success");
+        } else {
+          await send(result.text);
+          toast("Sent", "success");
+        }
       } catch (err) {
         toast(`STT error: ${err.message}`, "error");
         log("STT", `pipeline error: ${err.message}`, "error");
@@ -293,8 +299,8 @@ export default Plugin.define({
     const commands = [
       {
         id: "opencode-voice.record",
-        title: "Voice: record / transcribe",
-        description: "Toggle recording; press again to stop and insert into the prompt",
+        title: "Voice: record and send",
+        description: "Toggle recording; press again to transcribe and send as a prompt",
         bind: "ctrl+y",
         palette: true,
         slash: { name: "voice" },
@@ -302,26 +308,28 @@ export default Plugin.define({
           if (processing) return toast("Busy, please wait...");
           if (recording) {
             toast("Stopping...");
-            return void run(false);
+            return void run("send");
           }
           startRecording();
-          if (recording) toast("Recording... press again to transcribe");
+          if (recording) toast("Recording... press again to send");
         },
       },
       {
-        id: "opencode-voice.submit",
-        title: "Voice: record and submit",
-        description: "Stop recording, transcribe, and send the prompt",
+        id: "opencode-voice.copy",
+        title: "Voice: record to clipboard",
+        description: "Stop recording, transcribe, and copy to the clipboard instead of sending",
         bind: "<leader>r",
+        palette: true,
         run: () => {
           if (!recording) return toast("Not recording", "warning");
-          void run(true);
+          void run("clipboard");
         },
       },
       {
         id: "opencode-voice.cancel",
         title: "Voice: cancel recording",
         description: "Discard the current recording",
+        palette: true,
         slash: { name: "voice-stop" },
         run: () => {
           if (!recording) return;
@@ -333,6 +341,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.model",
         title: "Voice: select model",
+        palette: true,
         slash: { name: "voice-model" },
         run: async () => {
           const picked = await ctx.ui.dialog.select({
@@ -352,6 +361,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.language",
         title: "Voice: select language",
+        palette: true,
         slash: { name: "voice-language" },
         run: async () => {
           const picked = await ctx.ui.dialog.select({
@@ -371,6 +381,7 @@ export default Plugin.define({
       {
         id: "opencode-voice.mic",
         title: "Voice: select microphone",
+        palette: true,
         slash: { name: "voice-mic" },
         run: async () => {
           const devices = listInputDevices();
@@ -392,12 +403,11 @@ export default Plugin.define({
       {
         id: "opencode-voice.last",
         title: "Voice: copy last transcript",
+        palette: true,
         description: "Put the most recent transcript back on the clipboard",
         run: async () => {
           if (!settings.lastTranscript) return toast("No transcript yet", "warning");
-          const p = spawn("wl-copy", [], { stdio: ["pipe", "ignore", "ignore"] });
-          p.stdin.write(settings.lastTranscript);
-          p.stdin.end();
+          await copyToClipboard(settings.lastTranscript);
           toast("Copied to clipboard");
         },
       },
